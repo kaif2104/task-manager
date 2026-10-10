@@ -73,10 +73,15 @@ pipeline {
             }
         }
 
-        stage('6. Deploy Build to Server 2 Container') {
+        stage('6. Deploy Build & Sync Scripts to Server 2') {
             steps {
                 sshagent(['server2-ssh-key']) {
                     sh '''
+                        # 1. Sync latest monitoring and switch scripts from Git to Server 2
+                        scp -o StrictHostKeyChecking=no scripts/monitor_containers.sh ubuntu@${SERVER2_IP}:/var/www/app/monitor_containers.sh || true
+                        ssh -o StrictHostKeyChecking=no ubuntu@${SERVER2_IP} "chmod +x /var/www/app/*.sh || true"
+
+                        # 2. Deploy Container target
                         ssh -o StrictHostKeyChecking=no ubuntu@${SERVER2_IP} "
                             docker pull ${DOCKER_IMAGE}:${BUILD_NUMBER}
                             docker stop app-${TARGET_COLOR} || true
