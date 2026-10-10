@@ -99,13 +99,13 @@ pipeline {
             }
         }
 
-        stage('7. Automated DB Migration') {
+               stage('7. Automated DB Migration') {
             steps {
                 sshagent(['server2-ssh-key']) {
                     sh '''
                         sleep 3
-                        echo "Executing DB Migration on target container..."
-                        curl -s -f -X POST http://${SERVER2_IP}:${TARGET_PORT}/api/migrate
+                        echo "Executing DB Migration inside target container..."
+                        ssh -o StrictHostKeyChecking=no ubuntu@${SERVER2_IP} "docker exec app-${TARGET_COLOR} npm run migrate"
                     '''
                 }
             }
@@ -117,7 +117,8 @@ pipeline {
                     script {
                         try {
                             echo "Validating health of target container on Port ${env.TARGET_PORT}..."
-                            sh "ssh -o StrictHostKeyChecking=no ubuntu@${SERVER2_IP} 'curl -s -f http://localhost:${env.TARGET_PORT}/api/health'"
+                            sh "ssh -o StrictHostKeyChecking=no ubuntu@${SERVER2_IP} 'curl -s -f http://localhost:${env.TARGET_PORT}/health'"
+                            sh "ssh -o StrictHostKeyChecking=no ubuntu@${SERVER2_IP} 'curl -s -f http://localhost:${env.TARGET_PORT}/ready'"
                             
                             echo "Health check PASSED! Switching Nginx traffic to ${env.TARGET_COLOR}..."
                             sh "ssh -o StrictHostKeyChecking=no ubuntu@${SERVER2_IP} '/var/www/app/switch_traffic.sh ${env.TARGET_COLOR}'"
@@ -126,6 +127,7 @@ pipeline {
                             sh "ssh -o StrictHostKeyChecking=no ubuntu@${SERVER2_IP} '/var/www/app/switch_traffic.sh ${env.IDLE_COLOR}'"
                             error("Deployment aborted and rolled back due to failed health check!")
                         }
+        
                     }
                 }
             }
