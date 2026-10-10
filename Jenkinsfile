@@ -18,7 +18,6 @@ pipeline {
                 sh '''
                     echo "Running Gitleaks Secret Scanner..."
                     gitleaks detect --source . --verbose --no-git || true
-                    # Enforce Security Gate: Fail if leaks found (non-zero status handled cleanly)
                     gitleaks detect --source . --no-git
                 '''
             }
@@ -28,6 +27,7 @@ pipeline {
             steps {
                 withSonarQubeEnv('SonarQube') {
                     sh '''
+                        echo "Running SonarQube Scan..."
                         /var/jenkins_home/tools/hudson.plugins.sonar.SonarRunnerInstallation/SonarScanner/bin/sonar-scanner \
                         -Dsonar.projectKey=todo-app-devsecops \
                         -Dsonar.sources=. \
