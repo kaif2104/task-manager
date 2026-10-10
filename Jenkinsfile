@@ -28,11 +28,11 @@ pipeline {
                 withSonarQubeEnv('SonarQube') {
                     sh '''
                         echo "Running SonarQube Scan..."
-                        /var/jenkins_home/tools/hudson.plugins.sonar.SonarRunnerInstallation/SonarScanner/bin/sonar-scanner \
-                        -Dsonar.projectKey=todo-app-devsecops \
-                        -Dsonar.sources=. \
-                        -Dsonar.host.url=http://13.235.106.204:9000 \
-                        -Dsonar.exclusions="node_modules/**" || true
+                        sonar-scanner \
+                          -Dsonar.projectKey=todo-app-devsecops \
+                          -Dsonar.sources=. \
+                          -Dsonar.host.url=http://13.235.106.204:9000 \
+                          -Dsonar.exclusions="node_modules/**" || true
                     '''
                 }
             }
