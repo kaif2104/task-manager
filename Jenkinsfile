@@ -38,14 +38,12 @@ pipeline {
             }
         }
 
-        stage('4. Docker Build & Push to Registry') {
+        stage('4. Docker Build & Push Staging Image') {
             steps {
                 script {
                     docker.withRegistry('https://index.docker.io/v1/', 'docker-hub-credentials') {
-                        def customImage = docker.build("${DOCKER_IMAGE}:${BUILD_NUMBER}")
-                        def latestImage = docker.build("${DOCKER_IMAGE}:latest")
-                        customImage.push()
-                        latestImage.push()
+                        def buildImage = docker.build("${DOCKER_IMAGE}:${BUILD_NUMBER}")
+                        buildImage.push()
                     }
                 }
             }
@@ -75,12 +73,12 @@ pipeline {
             }
         }
 
-        stage('6. Deploy to Server 2 Container') {
+        stage('6. Deploy Build to Server 2 Container') {
             steps {
                 sshagent(['server2-ssh-key']) {
                     sh '''
                         ssh -o StrictHostKeyChecking=no ubuntu@${SERVER2_IP} "
-                            docker pull ${DOCKER_IMAGE}:latest
+                            docker pull ${DOCKER_IMAGE}:${BUILD_NUMBER}
                             docker stop app-${TARGET_COLOR} || true
                             docker rm app-${TARGET_COLOR} || true
                             docker run -d --name app-${TARGET_COLOR} \
@@ -89,7 +87,7 @@ pipeline {
                               -e DATABASE_URL=postgresql://todouser:todopassword@172.31.168.75:5432/tododb \
                               -e APP_VERSION=build-${BUILD_NUMBER}-${TARGET_COLOR} \
                               --restart always \
-                              ${DOCKER_IMAGE}:latest
+                              ${DOCKER_IMAGE}:${BUILD_NUMBER}
                         "
                     '''
                 }
@@ -108,7 +106,7 @@ pipeline {
             }
         }
 
-        stage('8. Post-Deploy Health Check & Traffic Switch') {
+        stage('8. Post-Deploy Health Check, Traffic Switch & Promote Production Image') {
             steps {
                 sshagent(['server2-ssh-key']) {
                     script {
@@ -119,12 +117,18 @@ pipeline {
                             
                             echo "Health check PASSED! Switching Nginx traffic to ${env.TARGET_COLOR}..."
                             sh "ssh -o StrictHostKeyChecking=no ubuntu@${SERVER2_IP} '/var/www/app/switch_traffic.sh ${env.TARGET_COLOR}'"
+
+                            // PROMOTE IMAGE TO :latest ONLY UPON SUCCESSFUL DEPLOYMENT
+                            echo "Promoting build ${BUILD_NUMBER} to production tag ':latest' on Docker Hub..."
+                            docker.withRegistry('https://index.docker.io/v1/', 'docker-hub-credentials') {
+                                sh "docker tag ${DOCKER_IMAGE}:${BUILD_NUMBER} ${DOCKER_IMAGE}:latest"
+                                sh "docker push ${DOCKER_IMAGE}:latest"
+                            }
                         } catch (Exception e) {
                             echo "CRITICAL: Health check FAILED! Executing AUTO-ROLLBACK..."
                             sh "ssh -o StrictHostKeyChecking=no ubuntu@${SERVER2_IP} '/var/www/app/switch_traffic.sh ${env.IDLE_COLOR}'"
-                            error("Deployment aborted and rolled back due to failed health check!")
+                            error("Deployment aborted and rolled back due to failed health check! Production tag ':latest' was NOT updated.")
                         }
-        
                     }
                 }
             }
