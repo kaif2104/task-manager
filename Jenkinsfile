@@ -86,10 +86,7 @@ pipeline {
                             docker run -d --name app-${TARGET_COLOR} \
                               -p ${TARGET_PORT}:8080 \
                               -e PORT=8080 \
-                              -e DB_HOST=172.31.168.75 \
-                              -e DB_USER=todouser \
-                              -e DB_PASS=todopassword \
-                              -e DB_NAME=tododb \
+                              -e DATABASE_URL=postgresql://todouser:todopassword@172.31.168.75:5432/tododb \
                               -e APP_VERSION=build-${BUILD_NUMBER}-${TARGET_COLOR} \
                               --restart always \
                               ${DOCKER_IMAGE}:latest
@@ -99,13 +96,13 @@ pipeline {
             }
         }
 
-               stage('7. Automated DB Migration') {
+        stage('7. Automated DB Migration') {
             steps {
                 sshagent(['server2-ssh-key']) {
                     sh '''
                         sleep 3
                         echo "Executing DB Migration inside target container..."
-                        ssh -o StrictHostKeyChecking=no ubuntu@${SERVER2_IP} "docker exec app-${TARGET_COLOR} npm run migrate"
+                        ssh -o StrictHostKeyChecking=no ubuntu@${SERVER2_IP} "docker exec -e DATABASE_URL=postgresql://todouser:todopassword@172.31.168.75:5432/tododb app-${TARGET_COLOR} npm run migrate"
                     '''
                 }
             }
